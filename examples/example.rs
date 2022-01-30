@@ -1,17 +1,3 @@
-### Copoll
-
-Copoll or Cool Poll is a abstraction for the linux epoll api making it a tad bit
-easier to poll your file descriptors. It does not provide a eventloop like mio
-or calloop. Because the whole point of this create is leaving that to the user.
-
-## Documentation
-
-[Docs.rs](https://docs.rs/copoll/1.3.0/copoll/)
-
-
-## Example
-
-```rs
 use copoll::{Interest, Mode, Token, Epoll, Event, Events};
 use std::os::unix::{net::UnixListener, io::AsRawFd};
 use std::time::Duration;
@@ -35,4 +21,3 @@ fn main() {
         }
     }
 }
-``` 

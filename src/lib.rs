@@ -49,8 +49,12 @@ pub struct Epoll {
     epoll_fd: RawFd
 }
 
-/// Shorthand for <epoll::EpollEvent>
-pub type Event = epoll::EpollEvent;
+/// Get the readiness and token of the event
+#[derive(Debug)]
+pub struct Event {
+    pub readiness: Readiness,
+    pub token: Token,
+}
 
 /// Shorthand for Vec<<epoll::EpollEvent>>
 pub type Events = Vec<Event>;
@@ -94,7 +98,7 @@ impl From<Token> for usize {
 impl Epoll {
     /// Create a new epoll instance
     pub fn create() -> io::Result<Epoll> {
-        let epoll_fd = epoll::epoll_create1(epoll::EpollCreateFlags::EPOLL_CLOEXEC)?;
+        let epoll_fd = epoll::epoll_create()?;
         Ok(Epoll { epoll_fd })
     }
 
@@ -102,24 +106,25 @@ impl Epoll {
     /// Call this one on each iteration of your event loop
     pub fn poll(
         &mut self, 
-        events: &mut Events,
         timeout: Option<Duration>
-    ) -> io::Result<()> {
+    ) -> io::Result<Events> {
+
+        let mut buffer = [epoll::EpollEvent::empty(); 32];
+
         let timeout = timeout.map(|d| d.as_millis() as isize).unwrap_or(-1);
 
-        events.clear();
-        
         let n_events = epoll::epoll_wait(
             self.epoll_fd, 
-            events,
+            &mut buffer,
             timeout,
         )?; 
 
-        unsafe {
-            events.set_len(n_events as usize)
-        };
+        let mut events = buffer.iter().take(n_events).map(|event| Event {
+            readiness: flags_to_readiness(event.events()),
+            token: Token(event.data() as usize)
+        }).collect(); 
 
-        Ok(())
+        Ok(events)
     }
 
     /// Register a new file descriptor in the epoll instance
@@ -171,19 +176,3 @@ impl Drop for Epoll {
     }
 }
 
-/// Utility functions for working with events
-pub mod event {
-        
-    use crate::{Event, Token, Readiness, flags_to_readiness};
-
-    /// Get the underlying Token of the event
-    pub fn token(event: &Event) -> Token {
-       Token(event.data() as usize) 
-    }
-
-    /// Get the underlying Readiness of the event
-    pub fn readiness(event: &Event) -> Readiness {
-        flags_to_readiness(event.events())
-    }
-
-}
