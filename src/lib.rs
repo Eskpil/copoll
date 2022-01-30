@@ -4,6 +4,10 @@ use std::os::unix::io::AsRawFd;
 
 use nix::sys::epoll;
 
+
+/// Describe what you are interested in polling
+/// Readable means you are interested in the readable events
+/// Writable means you are itnerested in the writable event
 #[derive(Debug, Copy, Clone)]
 pub enum Interest {
     Readable,
@@ -11,6 +15,11 @@ pub enum Interest {
     Both
 }
 
+
+/// Describe what mode you want to poll the fd with
+/// Level is the default linux behaviour
+/// Edge is for edge-triggered notifications on the fd
+/// OneShot is for one-shot notifications on the fd
 #[derive(Debug, Copy, Clone)]
 pub enum Mode {
    Level,
@@ -18,6 +27,10 @@ pub enum Mode {
    OneShot
 }
 
+/// Readiness
+/// readable marks the event as readable
+/// writable marks the event as writable
+/// error means that your event is an error
 #[derive(Debug, Copy, Clone)]
 pub struct Readiness {
     pub readable: bool,
@@ -25,15 +38,21 @@ pub struct Readiness {
     pub error: bool
 }
 
+/// A unique token indentifying a file descripting in the
+/// Epoll instance
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Token(pub usize);
 
+/// Epoll structure
 #[derive(Debug)]
 pub struct Epoll {
     epoll_fd: RawFd
 }
 
+/// Shorthand for <epoll::EpollEvent>
 pub type Event = epoll::EpollEvent;
+
+/// Shorthand for Vec<<epoll::EpollEvent>>
 pub type Events = Vec<Event>;
 
 fn make_flags(interest: Interest, mode: Mode) -> epoll::EpollFlags {
@@ -73,11 +92,14 @@ impl From<Token> for usize {
 }
 
 impl Epoll {
+    /// Create a new epoll instance
     pub fn create() -> io::Result<Epoll> {
         let epoll_fd = epoll::epoll_create1(epoll::EpollCreateFlags::EPOLL_CLOEXEC)?;
         Ok(Epoll { epoll_fd })
     }
 
+    /// Poll the epoll instance for new events.
+    /// Call this one on each iteration of your event loop
     pub fn poll(
         &mut self, 
         events: &mut Events,
@@ -100,6 +122,7 @@ impl Epoll {
         Ok(())
     }
 
+    /// Register a new file descriptor in the epoll instance
     pub fn register(
         &mut self,
         fd: RawFd,
@@ -112,7 +135,9 @@ impl Epoll {
             .map_err(Into::into)
     }
 
-     pub fn reregister(
+    /// Reregister a file descriptor in the epoll instance
+    /// often used when wanting to change say the mode or interest
+    pub fn reregister(
         &mut self,
         fd: RawFd,
         token: Token,
@@ -124,6 +149,7 @@ impl Epoll {
             .map_err(Into::into)
     }
 
+    /// Stop polling events a file descriptor
     pub fn unregister(
         &mut self,
         fd: RawFd
@@ -145,14 +171,17 @@ impl Drop for Epoll {
     }
 }
 
+/// Utility functions for working with events
 pub mod event {
         
     use crate::{Event, Token, Readiness, flags_to_readiness};
 
+    /// Get the underlying Token of the event
     pub fn token(event: &Event) -> Token {
        Token(event.data() as usize) 
     }
 
+    /// Get the underlying Readiness of the event
     pub fn readiness(event: &Event) -> Readiness {
         flags_to_readiness(event.events())
     }
